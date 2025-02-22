@@ -1,1 +1,4 @@
 ignore
+content
+dataset
+__pycache__

@@ -15,7 +15,7 @@ from torch.utils.data import  DataLoader
 from dataset import MidiDataset
 
 import MIDI
-from CustomDualTransformer import DualMusicTransformer
+from DualTransformer import DualMusicTransformer
 from midi_tokenizer import MIDITokenizerV2
 
 # Dataset parameters
