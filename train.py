@@ -15,7 +15,7 @@ from torch.utils.data import  DataLoader
 from dataset import MidiDataset
 
 import MIDI
-from DualTransformer import DualMusicTransformer
+from dual_transformer import DualTransformer
 from midi_tokenizer import MIDITokenizerV2
 
 # Dataset parameters
@@ -33,7 +33,7 @@ sample_sequences = False  # Whether to sample MIDI sequences to reduce VRAM
 generation_interval = 1  # Set to 0 to disable example generation
 training_batch_size = 8
 validation_batch_size = 8
-example_generation_batch_size = 8
+example_generation_batch_size = 2
 training_workers = 4
 validation_workers = 4
 gradient_accumulation = 2
@@ -59,11 +59,11 @@ def get_linear_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
     return LambdaLR(optimizer, lr_lambda, last_epoch)
 
 
-class TrainMIDIModel(DualMusicTransformer, pl.LightningModule):
+class TrainMIDIModel(DualTransformer, pl.LightningModule):
     def __init__(self, tokenizer,
                  lr=2e-4, weight_decay=0.01, warmup=1e3, max_step=1e6,
                  sample_seq=False, gen_example_interval=1, example_batch=8,
-                 event_context_size=256, token_context_size=8,
+                 event_context_size=128, token_context_size=8,
                  n_embd=512, event_head=8, token_head=2,
                  event_depth=6, token_depth=2, dropout=0.1):
         super().__init__(
@@ -243,8 +243,8 @@ if __name__ == '__main__':
     train_midi_list = midiDataset.get_midi_list()[:train_dataset_len]
     val_midi_list = midiDataset.get_midi_list()[train_dataset_len:]
 
-    train_dataset = MidiDataset(tokenizer, train_midi_list, max_len=96, aug=True, rand_start=True)
-    val_dataset = MidiDataset(tokenizer, val_midi_list, max_len=96, aug=False, rand_start=False)
+    train_dataset = MidiDataset(tokenizer, train_midi_list, aug=True, rand_start=True)
+    val_dataset = MidiDataset(tokenizer, val_midi_list, aug=False, rand_start=False)
 
     print(f"Train dataset length: {len(train_dataset)}")
     print(f"Val dataset length: {len(val_dataset)}")
