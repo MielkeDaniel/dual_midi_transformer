@@ -7,7 +7,7 @@ from torch.utils.data import Dataset
 import MIDI
 from midi_tokenizer import MIDITokenizerV2
 
-from torch.utils.data import  DataLoader
+from torch.utils.data import DataLoader
 
 EXTENSION = [".mid", ".midi"]
 
@@ -15,11 +15,11 @@ def file_ext(f_name):
     return os.path.splitext(f_name)[1].lower()
 
 class MidiDataset(Dataset):
-    def __init__(self, tokenizer, midi_list=None, max_events=75, min_events=15, aug=True, rand_start=True):
+    def __init__(self, tokenizer, midi_list=None, max_events=256, min_events=20, aug=True, rand_start=True):
 
         self.tokenizer = tokenizer
-        self.midi_list = get_midi_list("./content/dataset") if midi_list is None else midi_list
-        random.shuffle(self.midi_list)
+        self.midi_list = get_midi_list("./content/909_dataset") if midi_list is None else midi_list
+        #random.shuffle(self.midi_list)
         self.min_events = min_events
         self.max_events = max_events
         self.aug = aug
@@ -55,8 +55,10 @@ class MidiDataset(Dataset):
         mid = np.asarray(mid, dtype=np.int16)
 
         if self.rand_start and mid.shape[0] > self.max_events:
-            start_idx = random.randrange(0, max(1, mid.shape[0] - self.max_events))
-            start_idx = random.choice([0, start_idx])
+            if random.random() < 0.25:  # 30% chance to start at 0
+                start_idx = 0
+            else:
+                start_idx = random.randrange(0, max(1, mid.shape[0] - self.max_events))
         else:
             start_idx = 0
         mid = mid[start_idx: start_idx + self.max_events]
@@ -79,3 +81,14 @@ def get_midi_list(path):
     print(f"Found {file_count} files")
     return files
 
+
+def gen_mid(seq, name, tokenizer):
+    # print seq len with name
+    print(name, len(seq))
+    seq = seq.cpu() 
+    seq_np = seq.numpy()
+    midi_score = tokenizer.detokenize(seq_np)
+    midi_data = MIDI.score2midi(midi_score)
+
+    with open("./training_samples/" + name, 'wb') as f:
+        f.write(midi_data)

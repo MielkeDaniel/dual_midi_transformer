@@ -56,7 +56,7 @@ def apply_rotary_pos_emb(t, freqs):
     # Now the shapes align:
     # t_left: [4, 8, 8192, 32]
     # sin/cos: [1, 1, 8192, 32]
-    t_left = (t_left * cos) + (rotate_half(t_left) * sin)
+    t_left = (t_left * cos.clone()) + (rotate_half(t_left) * sin.clone())
 
     return torch.cat([t_left, t_pass], dim=-1)
 
@@ -279,7 +279,7 @@ class AutoregressiveWrapper(nn.Module):
             filter_thres: Threshold for filtering logits
         """
         self.net.eval()
-        b, t = x.shape
+        _, t = x.shape
 
         out = x
 

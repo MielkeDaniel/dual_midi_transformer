@@ -140,6 +140,15 @@ def train(args):
         token_depth=args.token_depth,
         dropout=args.dropout
     )
+
+    # Load checkpoint
+    checkpoint = torch.load('./checkpoints/v1/cp1.pt')
+    model_dict = model.state_dict()
+    # Filter out rope.cache keys
+    filtered_dict = {k: v for k, v in checkpoint['model_state_dict'].items() if not k.endswith('rope.cache')}
+    model_dict.update(filtered_dict)
+    model.load_state_dict(model_dict)
+    nsteps = checkpoint['step']
     model.cuda()
 
     # Optimizer setup
@@ -168,7 +177,7 @@ def train(args):
     val_losses = []
     train_accs = []
     val_accs = []
-    nsteps = 0
+    # nsteps loaded from checkpoint
 
     # Create dataloaders
     train_loader = DataLoader(

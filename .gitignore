@@ -3,3 +3,8 @@ content
 dataset
 __pycache__
 lightning_logs
+samples
+generation_samples
+training_samples
+checkpoints
+.idea
