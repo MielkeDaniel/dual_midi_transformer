@@ -2,6 +2,8 @@
 
 A hierarchical transformer architecture for generating MIDI music with a dual-level approach.
 
+![Banner](./midi_banner.png)
+
 ## Overview
 
 This project implements a dual transformer architecture for hierarchical music generation. The model consists of two specialized transformers:
