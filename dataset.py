@@ -15,11 +15,11 @@ def file_ext(f_name):
     return os.path.splitext(f_name)[1].lower()
 
 class MidiDataset(Dataset):
-    def __init__(self, tokenizer, midi_list=None, max_events=256, min_events=20, aug=True, rand_start=True):
+    def __init__(self, tokenizer, midi_list=None, max_events=128, min_events=20, aug=True, rand_start=True):
 
         self.tokenizer = tokenizer
         self.midi_list = get_midi_list("./content/909_dataset") if midi_list is None else midi_list
-        #random.shuffle(self.midi_list)
+        random.shuffle(self.midi_list)
         self.min_events = min_events
         self.max_events = max_events
         self.aug = aug
@@ -55,7 +55,7 @@ class MidiDataset(Dataset):
         mid = np.asarray(mid, dtype=np.int16)
 
         if self.rand_start and mid.shape[0] > self.max_events:
-            if random.random() < 0.25:  # 30% chance to start at 0
+            if random.random() < 0.15:  # 30% chance to start at 0
                 start_idx = 0
             else:
                 start_idx = random.randrange(0, max(1, mid.shape[0] - self.max_events))

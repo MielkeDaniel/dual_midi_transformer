@@ -44,18 +44,13 @@ def apply_rotary_pos_emb(t, freqs):
     rot_dim = freqs.shape[-1] // 2
 
     # Split t into two halves along last dimension
-    t_left, t_pass = t[..., :rot_dim], t[..., rot_dim:]  # t_left becomes [4, 8, 8192, 32]
+    t_left, t_pass = t[..., :rot_dim], t[..., rot_dim:]
 
-    # Split freqs into sin and cos, each [8192, 64]
     sin, cos = freqs[..., :rot_dim], freqs[..., rot_dim:]
 
-    # Reshape sin & cos for broadcasting, each becoming [1, 1, 8192, 32]
     sin = sin[..., :rot_dim].unsqueeze(0).unsqueeze(0)
     cos = cos[..., :rot_dim].unsqueeze(0).unsqueeze(0)
 
-    # Now the shapes align:
-    # t_left: [4, 8, 8192, 32]
-    # sin/cos: [1, 1, 8192, 32]
     t_left = (t_left * cos.clone()) + (rotate_half(t_left) * sin.clone())
 
     return torch.cat([t_left, t_pass], dim=-1)
@@ -76,7 +71,7 @@ class MultiHeadAttention(nn.Module):
         self.to_out = nn.Linear(inner_dim, dim)
         self.dropout = dropout
 
-        # Add RoPE with better implementation
+        # Add RoPE
         self.rope = RotaryEmbedding(dim_head)
 
     def forward(self, x, mask=None):
@@ -111,27 +106,25 @@ class MultiHeadAttention(nn.Module):
         else:
             scale = (self.d_head ** 0.5)
             attn_scores = (q @ k.transpose(-2, -1)) / scale
-            
+
             if mask is not None:
                 attn_scores = attn_scores.masked_fill(~mask, float('-inf'))
-            
+
             attn_probs = torch.softmax(attn_scores, dim=-1)
             attn_probs = self.attn_dropout(attn_probs)
             out = attn_probs @ v
 
-        return self.to_out(rearrange(out, 'b h n d -> b n (h d)'))
+        return self.to_out(rearrange(out, 'b h n d -> b n (h d)')), k, v
 
 
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout=0.1):
         super().__init__()
-        # Step 19-20: First linear transformation that scales up dimensions
         # followed by GELU activation (modern alternative to ReLU)
         self.net = nn.Sequential(
             nn.Linear(dim, hidden_dim),
             nn.GELU(),
             nn.Dropout(dropout),
-            # Step 23: Second linear projection scaling dimensions back down
             nn.Linear(hidden_dim, dim)
         )
 
@@ -154,15 +147,16 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x, mask=None):
         # Attention with residual connection and layer norm
-        x = x + self.dropout(self.attention(self.norm1(x), mask=mask))
+        attn_output, k, v = self.attention(self.norm1(x), mask=mask)
+        x = x + self.dropout(attn_output)
         # Feed forward with residual connection and layer norm
         x = x + self.dropout(self.ff(self.norm2(x)))
-        return x
+        return x, k, v
 
 
 class MusicTransformer(nn.Module):
     def __init__(self,
-                 num_tokens=836,  # Total vocabulary size (PAD_IDX + 1 from notebook)
+                 num_tokens=836,
                  dim=512,  # Model dimension
                  depth=6,  # Number of decoder blocks
                  heads=8,  # Number of attention heads
@@ -173,7 +167,7 @@ class MusicTransformer(nn.Module):
 
         # Token embedding layer (converts token IDs to vectors)
         self.token_emb = nn.Embedding(num_tokens, dim)
-        self.max_seq_len = max_seq_len 
+        self.max_seq_len = max_seq_len
         self.dropout = nn.Dropout(dropout)
 
         # Stack of decoder blocks
@@ -191,7 +185,7 @@ class MusicTransformer(nn.Module):
 
         # Initialize weights
         self.apply(self._init_weights)
-        
+
     def _init_weights(self, module):
         """Initialize model weights."""
         if isinstance(module, nn.Linear):
@@ -213,6 +207,7 @@ class MusicTransformer(nn.Module):
 
         for layer in self.layers:
             x = layer(x, mask)
+            print(x.shape)
 
         x = self.norm(x)
         return self.to_logits(x)
@@ -220,97 +215,3 @@ class MusicTransformer(nn.Module):
 
 def exists(val):
     return val is not None
-
-
-class AutoregressiveWrapper(nn.Module):
-    def __init__(self,
-                 net,
-                 pad_value=0,
-                 ignore_index=-100):
-        super().__init__()
-        self.pad_value = pad_value
-        self.ignore_index = ignore_index
-        self.net = net
-        # Get max_seq_len directly from model
-        self.max_seq_len = net.max_seq_len
-
-    def forward(self, x, mask=None, **kwargs):  # Add mask parameter
-        inp, target = x[:, :-1], x[:, 1:]
-        inp = torch.where(inp == self.ignore_index, self.pad_value, inp)
-        logits = self.net(inp, mask=mask, **kwargs)  # Pass mask to network
-        loss = F.cross_entropy(
-            rearrange(logits, 'b n c -> b c n'),
-            target,
-            ignore_index=self.ignore_index
-        )
-        acc = self._compute_accuracy(logits, target)
-        return loss, acc
-
-    def _compute_accuracy(self, logits, labels):
-        """Computes accuracy of predictions"""
-        predictions = torch.argmax(logits, dim=-1)
-
-        predictions = predictions.flatten()
-        labels = labels.flatten()
-
-        # Create mask for non-ignored positions
-        mask = (labels != self.ignore_index)
-
-        # Only compare predictions where labels are not ignored
-        predictions = predictions[mask]
-        labels = labels[mask]
-
-        # Calculate accuracy
-        correct = (predictions == labels).sum().float()
-        total = len(labels)
-
-        return correct / total if total > 0 else torch.tensor(0.0)
-
-    @torch.no_grad()
-    def generate(self, x, seq_len, temperature=1.0, filter_logits_fn=None, filter_thres=0.9, return_prime=False,
-                 **kwargs):
-        """
-        Generates sequence autoregressively
-        Args:
-            x: Starting tokens (b, t)
-            seq_len: Number of tokens to generate
-            temperature: Sampling temperature (1.0 = neutral, 0.0 = deterministic)
-            filter_logits_fn: Function to filter/modify logits before sampling
-            filter_thres: Threshold for filtering logits
-        """
-        self.net.eval()
-        _, t = x.shape
-
-        out = x
-
-        for _ in range(seq_len):
-            # Trim context if needed
-            x_input = out[:, -self.max_seq_len:]
-
-            # Get predictions
-            logits = self.net(x_input, **kwargs)
-
-            # Focus only on the last step of the sequence
-            logits = logits[:, -1]
-
-            # Apply temperature
-            if temperature != 1.0:
-                logits = logits / temperature
-
-            # Filter logits if function provided
-            if exists(filter_logits_fn):
-                logits = filter_logits_fn(logits, thres=filter_thres)
-
-            # Apply softmax to get probabilities
-            probs = F.softmax(logits, dim=-1)
-
-            # Sample from the distribution
-            sample = torch.multinomial(probs, 1)
-
-            # Append to sequence
-            out = torch.cat((out, sample), dim=-1)
-
-        if return_prime:
-            return out[:, :]  # Return entire sequence explicitly
-        else:
-            return out[:, t:]  # Return only generated part

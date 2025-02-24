@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import tqdm
 import random
 from dataset import MidiDataset, gen_mid
-from dual_transformer import DualTransformer
 from midi_tokenizer import MIDITokenizerV2
+from DualLlama import MIDIModel, MIDIModelConfig
 import MIDI
 
 
@@ -19,21 +19,21 @@ class Args:
         self.event_context_size = 128
         self.token_context_size = 8
         self.n_embd = 1024
-        self.event_head = 8
+        self.event_head = 16
         self.token_head = 4
         self.event_depth = 12
         self.token_depth = 3
         self.dropout = 0.1
         self.batch_size = 16
         self.grad_accum = 2
-        self.lr = 5e-6
+        self.lr = 5e-5
         self.weight_decay = 0.01
-        self.warmup = 500
+        self.warmup = 200
         self.max_step = 100000
         self.validate_every = 50
-        self.generate_every = 400
-        self.save_every = 500
-        self.print_stats_every = 40
+        self.generate_every = 300
+        self.save_every = 400
+        self.print_stats_every = 50
         self.data_path = './content/909_dataset'
         self.save_dir = './checkpoints'
         self.sample_sequences = False
@@ -94,7 +94,7 @@ def plot_training_progress(train_losses, train_accs, val_losses, val_accs, valid
 def generate_sample(model, tokenizer, step, val_dataset):
     model.eval()
     with torch.no_grad():
-        samples = model.generate(max_len=128, batch_size=args.example_batch, tokenizer=tokenizer)
+        samples = model.generate(max_len=128, batch_size=args.example_batch, temp=0.8)
         samples = [tokenizer.detokenize(sample) for sample in samples]
 
         # Save MIDI files
@@ -107,7 +107,7 @@ def generate_sample(model, tokenizer, step, val_dataset):
         prompt = np.asarray(prompt, dtype=np.int16)
         prompt = prompt[:40].astype(np.int64)
 
-        sample = model.generate(max_len=128, batch_size=args.example_batch, tokenizer=tokenizer, prompt=prompt)
+        sample = model.generate(max_len=128, batch_size=args.example_batch, prompt=prompt, temp=0.8)
         sample = [tokenizer.detokenize(sample) for sample in sample]
 
         # Save MIDI files
@@ -120,6 +120,7 @@ def train(args):
     # Initialize tokenizer
     print('Initializing tokenizer...')
     tokenizer = MIDITokenizerV2()
+    tokenizer.set_optimise_midi(True)
 
     # Load dataset
     print('Creating MIDI dataset...')
@@ -138,17 +139,16 @@ def train(args):
     print(f"Val dataset length: {len(val_dataset)}")
 
     # Initialize model
-    model = DualTransformer(
-        vocab_size=tokenizer.vocab_size,
-        event_context_size=args.event_context_size,
-        token_context_size=args.token_context_size,
+    # Create model config based on args
+    model_config = MIDIModelConfig.get_config(
+        tokenizer_ver="v2",
+        optimise_midi=True,
+        n_layer=args.event_depth,
+        n_head=args.event_head,
         n_embd=args.n_embd,
-        event_head=args.event_head,
-        token_head=args.token_head,
-        event_depth=args.event_depth,
-        token_depth=args.token_depth,
-        dropout=args.dropout
+        n_inner=args.n_embd * 4
     )
+    model = MIDIModel(model_config)
     model.cuda()
 
     # Optimizer setup
@@ -212,6 +212,7 @@ def train(args):
                     rand_idx = [-1] + random.sample(list(range(y.shape[1] - 2)), min(127, (y.shape[1] - 2) // 2))
                     y = y[:, rand_idx]
 
+                # Forward pass using DualLlama
                 hidden = model.forward(x)
                 hidden = hidden.reshape(-1, hidden.shape[-1])
                 y = y.reshape(-1, y.shape[-1])
