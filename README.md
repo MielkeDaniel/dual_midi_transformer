@@ -13,8 +13,6 @@ The architecture enables the generation of coherent and structured musical compo
 
 ## Architecture
 
-![MIDI Event Transformer Architecture](https://via.placeholder.com/800x400?text=MIDI+Event+Transformer+Architecture)
-
 The MIDI Event Transformer encodes MIDI files into token sequences where:
 - Each MIDI event is converted into a token sequence
 - The first token represents the event type (note, program change, etc.)
