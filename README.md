@@ -3,6 +3,7 @@
 A hierarchical transformer architecture for generating MIDI music with a dual-level approach.
 
 ![Banner](./midi_banner.png)
+[Sample MP3](./sample/example_sample.mp3)
 
 ## Overview
 
