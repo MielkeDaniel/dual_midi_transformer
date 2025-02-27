@@ -92,3 +92,15 @@ def gen_mid(seq, name, tokenizer):
 
     with open("./training_samples/" + name, 'wb') as f:
         f.write(midi_data)
+
+
+# print the whole amount of tokens in the dataset, remember that each item in the dataset has a shape of (seq_len, 8)
+def print_dataset_tokens(dataset):
+    tokens = 0
+    for i in range(len(dataset)):
+        tokens += len(dataset[i])
+        # print token amount every 100 files
+        if i % 100 == 0:
+            print(f"Processed {i} files, {tokens} tokens")
+    print(f"Dataset has {tokens} tokens")
+    return tokens

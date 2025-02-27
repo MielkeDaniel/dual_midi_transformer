@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler
+from torch.amp import GradScaler
 import matplotlib.pyplot as plt
 import tqdm
 import random

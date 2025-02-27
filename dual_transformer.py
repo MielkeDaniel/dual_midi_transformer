@@ -263,3 +263,6 @@ class DualTransformer(nn.Module):
                 break
 
         return input_tensor.cpu().numpy()
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
