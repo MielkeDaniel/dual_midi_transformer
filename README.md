@@ -31,7 +31,7 @@ The dual transformer architecture then:
 
 - `dual_transformer.py`: Main implementation of the dual transformer architecture (currently without proper caching for inference)
 - `transformer_model.py`: Base transformer model implementation with rotary positional embedding
-- `DualLlama.py`: Alternative implementation with proper caching (temporary solution)
+- `DualLlama.py`: Alternative implementation with proper caching (temporary solution) by [SkyTNT/midi-model](https://github.com/SkyTNT/midi-model)
 - `midi_tokenizer.py`: MIDI tokenization utilities for converting between MIDI files and token sequences
 - `dataset.py`: Dataset handling functionality for training the model
 - `MIDI_Event_transformer_explanation.pdf`: Detailed explanation of the architecture and encoding process
