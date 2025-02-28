@@ -5,6 +5,9 @@ A hierarchical transformer architecture for generating MIDI music with a dual-le
 ![Banner](./midi_banner.png)
 [Sample MP3](./sample/example_sample.mp3)
 
+Unfortunately there currently is no prototype uploaded in this repository yet, as such model would exceed almost 1GB in size. 
+I plan on uploading a version to the Hugging Face Model Hub at a later point of time. 
+
 ## Overview
 
 This project implements a dual transformer architecture for hierarchical music generation. The model consists of two specialized transformers:
